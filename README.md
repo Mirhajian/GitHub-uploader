@@ -1,5 +1,7 @@
 # 📤 Telegram → GitHub File Upload Bot
 
+> یک نسخه فارسی این راهنما موجود است: [README.fa.md](README.fa.md)
+
 A Telegram bot that receives any file type and uploads it directly to a GitHub repository via the Contents API.
 
 ---
@@ -139,8 +141,4 @@ uploads/2024-01-15/photo.jpg
 uploads/project/images/photo.jpg
 ```
 
----
 
-## License
-
-MIT
