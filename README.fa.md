@@ -51,8 +51,9 @@ telegram-github-uploader/
 ### ۱. دریافت کد و نصب وابستگی‌ها
 
 ```bash
-git clone https://github.com/شما/telegram-github-uploader.git
-cd telegram-github-uploader
+git clone https://github.com/mirhajian/GitHub-uploader.git
+cd GitHub-uploader
+
 
 python -m venv .venv
 source .venv/bin/activate        # ویندوز: .venv\Scripts\activate

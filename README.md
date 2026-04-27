@@ -53,8 +53,8 @@ telegram-github-uploader/
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/you/telegram-github-uploader.git
-cd telegram-github-uploader
+git clone https://github.com/mirhajian/GitHub-uploader.git
+cd GitHub-uploader
 
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
@@ -94,13 +94,6 @@ cp .env.example .env
 
 ```bash
 python -m bot
-```
-
-### 4. Run with Docker
-
-```bash
-docker build -t tg-gh-uploader .
-docker run --env-file .env tg-gh-uploader
 ```
 
 ---
