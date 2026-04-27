@@ -68,7 +68,7 @@ cp .env.example .env
 
 ### ۳. اجرای ربات
 ```bash
-screen -S tel2github  # اجازه دهید تا رباط شما در بکگراند اجرا شود
+screen -S tel2github  # اجازه دهید تا ربات شما در بکگراند اجرا شود
 ```
 
 ```bash
