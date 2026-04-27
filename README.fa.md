@@ -50,10 +50,13 @@ telegram-github-uploader/
 ### ۱. دریافت کد و نصب وابستگی‌ها
 
 ```bash
+sudo apt update
+sudo apt install build-essential python3 python3-dev python3-venv python3-pip git -y
+
 git clone https://github.com/mirhajian/GitHub-uploader.git
 cd GitHub-uploader
 
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate        # ویندوز: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
