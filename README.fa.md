@@ -103,15 +103,25 @@ TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 این یک «Personal Access Token» (PAT) است که به ربات اجازه می‌دهد فایل در مخزن شما بنویسد.
 
 ۱. به [github.com](https://github.com) وارد شوید.
+
 ۲. از گوشه بالا-راست روی عکس پروفایل خود کلیک کنید → **Settings**.
+
 ۳. از منوی چپ به پایین اسکرول کنید → **Developer settings**.
+
 ۴. روی **Personal access tokens** کلیک کنید → **Tokens (classic)**.
+
 ۵. روی **Generate new token** → **Generate new token (classic)** کلیک کنید.
+
 ۶. یک نام توضیحی بنویسید (مثال: `telegram-uploader-bot`).
+
 ۷. در بخش **Expiration** یک زمان انقضا انتخاب کنید (یا `No expiration`).
+
 ۸. در بخش **Select scopes**، تیک **`repo`** را بزنید (تمام زیرمجموعه‌ها انتخاب می‌شوند).
+
 ۹. روی **Generate token** کلیک کنید.
+
 ۱۰. توکن را **همان لحظه** کپی کنید — بعد از بستن صفحه دیگر نمایش داده نمی‌شود.
+
 
 ```
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
