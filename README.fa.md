@@ -104,13 +104,13 @@ TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ۱. به [github.com](https://github.com) وارد شوید.
 
-۲. از گوشه بالا-راست روی عکس پروفایل خود کلیک کنید → **Settings**.
+۲. از گوشه بالا-راست روی عکس پروفایل خود کلیک کنید ← **Settings**.
 
-۳. از منوی چپ به پایین اسکرول کنید → **Developer settings**.
+۳. از منوی چپ به پایین اسکرول کنید ← **Developer settings**.
 
-۴. روی **Personal access tokens** کلیک کنید → **Tokens (classic)**.
+۴. روی **Personal access tokens** کلیک کنید ← **Tokens (classic)**.
 
-۵. روی **Generate new token** → **Generate new token (classic)** کلیک کنید.
+۵. روی **Generate new token** ← **Generate new token (classic)** کلیک کنید.
 
 ۶. یک نام توضیحی بنویسید (مثال: `telegram-uploader-bot`).
 
