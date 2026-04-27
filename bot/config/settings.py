@@ -25,9 +25,8 @@ class Settings:
 
     # ── Telegram ──────────────────────────────────────────────────────────
     telegram_bot_token: str
-    telegram_api_id: int                  # From https://my.telegram.org
-    telegram_api_hash: str                # From https://my.telegram.org
-    telegram_local_server_url: str        # e.g. "http://localhost:8081"
+    telegram_api_id: int    # From https://my.telegram.org
+    telegram_api_hash: str  # From https://my.telegram.org
 
     # ── GitHub ────────────────────────────────────────────────────────────
     github_token: str
@@ -35,7 +34,7 @@ class Settings:
     github_repo: str
     github_branch: str
 
-    # ── Upload behaviour ─────────────────────────────────────────────────
+    # ── Upload behaviour ──────────────────────────────────────────────────
     upload_base_path: str
     file_conflict_strategy: Literal["overwrite", "version"]
 
@@ -55,7 +54,6 @@ class Settings:
         self.github_owner = self._require("GITHUB_OWNER")
         self.github_repo = self._require("GITHUB_REPO")
 
-        # TELEGRAM_API_ID must be a valid integer
         api_id_raw = self._require("TELEGRAM_API_ID")
         try:
             self.telegram_api_id = int(api_id_raw)
@@ -64,9 +62,6 @@ class Settings:
                 "TELEGRAM_API_ID must be a number. "
                 "Get it from https://my.telegram.org."
             )
-
-        # TELEGRAM_LOCAL_SERVER_URL is required — this bot runs on its own server
-        self.telegram_local_server_url = self._require("TELEGRAM_LOCAL_SERVER_URL").rstrip("/")
 
         # ── Optional with defaults ─────────────────────────────────────────
         self.github_branch = os.getenv("GITHUB_BRANCH", "main")
@@ -115,7 +110,6 @@ class Settings:
         )
 
     def is_user_allowed(self, user_id: int) -> bool:
-        """Return True if the user_id is in the whitelist (or whitelist is empty = open)."""
         if not self.allowed_user_ids:
             return True
         return user_id in self.allowed_user_ids
@@ -123,15 +117,10 @@ class Settings:
     def __repr__(self) -> str:
         return (
             f"<Settings owner={self.github_owner} repo={self.github_repo} "
-            f"branch={self.github_branch} conflict={self.file_conflict_strategy} "
-            f"local_server={self.telegram_local_server_url}>"
+            f"branch={self.github_branch} conflict={self.file_conflict_strategy}>"
         )
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """
-    Return the singleton Settings instance.
-    Cached so the .env file is only parsed once per process lifetime.
-    """
     return Settings()

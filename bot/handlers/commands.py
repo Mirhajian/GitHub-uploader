@@ -1,17 +1,21 @@
 """
 bot/handlers/commands.py
 ─────────────────────────
-Handles /start, /help, /setpath, and /status commands.
-All text strings are in Persian.
+Handles /start, /help, /setpath, /clearpath, and /status commands.
+Uses Pyrogram (MTProto).  All text strings are in Persian.
 """
 
 from __future__ import annotations
 
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from pyrogram import Client
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from bot.config.settings import get_settings
 
@@ -35,19 +39,17 @@ def clear_user_path(user_id: int) -> None:
 
 # ── /start ─────────────────────────────────────────────────────────────────────
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_start(client: Client, message: Message) -> None:
     cfg = get_settings()
-    user = update.effective_user
+    user = message.from_user
     if not user:
         return
 
     if not cfg.is_user_allowed(user.id):
-        await update.message.reply_text(
-            "⛔ شما مجاز به استفاده از این ربات نیستید."
-        )
+        await message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
         return
 
-    keyboard = [
+    keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📂 راهنما", callback_data="show_help"),
             InlineKeyboardButton("⚙️ وضعیت", callback_data="show_status"),
@@ -55,39 +57,34 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [
             InlineKeyboardButton("📁 تنظیم مسیر", callback_data="show_setpath_help"),
         ],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    ])
 
     welcome_text = (
-        f"👋 سلام، *{user.first_name}*!\n\n"
+        f"👋 سلام، **{user.first_name}**!\n\n"
         "🤖 به ربات آپلود فایل به GitHub خوش آمدید.\n\n"
-        "📤 *نحوه استفاده:*\n"
+        "📤 **نحوه استفاده:**\n"
         "کافی است هر فایلی (سند، عکس، ویدیو، صدا، و ...) را مستقیماً "
         "برای این ربات ارسال کنید.\n"
         "ربات آن را به صورت خودکار در مخزن GitHub آپلود می‌کند.\n\n"
-        f"🗂 *مخزن:* `{cfg.github_owner}/{cfg.github_repo}`\n"
-        f"🌿 *شاخه:* `{cfg.github_branch}`\n\n"
-        "برای مشاهده دستورات کامل روی *راهنما* کلیک کنید."
+        f"🗂 **مخزن:** `{cfg.github_owner}/{cfg.github_repo}`\n"
+        f"🌿 **شاخه:** `{cfg.github_branch}`\n\n"
+        "برای مشاهده دستورات کامل روی **راهنما** کلیک کنید."
     )
 
-    await update.message.reply_text(
-        welcome_text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=reply_markup,
-    )
+    await message.reply(welcome_text, reply_markup=keyboard)
 
 
 # ── /help ──────────────────────────────────────────────────────────────────────
 
 HELP_TEXT = """
-📖 *راهنمای ربات*
+📖 **راهنمای ربات**
 
 ━━━━━━━━━━━━━━━━━━━━
-📤 *آپلود فایل*
+📤 **آپلود فایل**
 فقط فایل موردنظر را ارسال کنید. ربات آن را دریافت و در GitHub ذخیره می‌کند.
 
 ━━━━━━━━━━━━━━━━━━━━
-🗂 *دستورات*
+🗂 **دستورات**
 
 `/start` — شروع و نمایش خوش‌آمدگویی
 `/help` — نمایش این راهنما
@@ -96,136 +93,162 @@ HELP_TEXT = """
 `/status` — نمایش اطلاعات مخزن و تنظیمات فعلی
 
 ━━━━━━━━━━━━━━━━━━━━
-📝 *نمونه مسیرسازی*
+📝 **نمونه مسیرسازی**
 
 • پیش‌فرض: `uploads/YYYY-MM-DD/نام_فایل`
 • با `/setpath پروژه/من`: `uploads/پروژه/من/نام_فایل`
 
 ━━━━━━━━━━━━━━━━━━━━
-⚠️ *محدودیت‌ها*
+⚠️ **محدودیت‌ها**
 
 • حداکثر حجم فایل GitHub: ۱۰۰ مگابایت
-• برای فایل‌های بزرگ‌تر از ۵۰ مگابایت نیاز به سرور Bot API محلی دارید
+• حداکثر حجم فایل Telegram (MTProto): ۲۰۰۰ مگابایت
 • برای فایل‌های بزرگ‌تر از ۱۰۰ مگابایت از Git LFS استفاده کنید
 
 ━━━━━━━━━━━━━━━━━━━━
-✅ *فرمت‌های پشتیبانی‌شده*
+✅ **فرمت‌های پشتیبانی‌شده**
 سند، عکس، ویدیو، صدا، ویس، انیمیشن، ویدیو گرد، استیکر و تمام فایل‌های دیگر
 """
 
 
-async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_help(client: Client, message: Message) -> None:
     cfg = get_settings()
-    user = update.effective_user
+    user = message.from_user
     if not user:
         return
-
     if not cfg.is_user_allowed(user.id):
-        await update.message.reply_text("⛔ شما مجاز به استفاده از این ربات نیستید.")
+        await message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
         return
-
-    await update.message.reply_text(HELP_TEXT, parse_mode=ParseMode.MARKDOWN)
+    await message.reply(HELP_TEXT)
 
 
 # ── /setpath ───────────────────────────────────────────────────────────────────
 
-async def cmd_setpath(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_setpath(client: Client, message: Message) -> None:
     cfg = get_settings()
-    user = update.effective_user
+    user = message.from_user
     if not user:
         return
-
     if not cfg.is_user_allowed(user.id):
-        await update.message.reply_text("⛔ شما مجاز به استفاده از این ربات نیستید.")
+        await message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
         return
 
-    if not context.args:
-        await update.message.reply_text(
+    # message.command is ["setpath", "arg1", "arg2", ...]
+    args = message.command[1:]
+    if not args:
+        await message.reply(
             "⚠️ لطفاً یک مسیر مشخص کنید.\n\n"
-            "مثال: `/setpath پروژه/تصاویر`",
-            parse_mode=ParseMode.MARKDOWN,
+            "مثال: `/setpath پروژه/تصاویر`"
         )
         return
 
-    path = "/".join(context.args).strip("/")
+    path = "/".join(args).strip("/")
     set_user_path(user.id, path)
     logger.info("User %d set custom path: %s", user.id, path)
 
-    await update.message.reply_text(
-        f"✅ *مسیر آپلود تنظیم شد:*\n"
+    await message.reply(
+        f"✅ **مسیر آپلود تنظیم شد:**\n"
         f"`{cfg.upload_base_path}/{path}/`\n\n"
-        "فایل‌های بعدی شما در این مسیر ذخیره می‌شوند.",
-        parse_mode=ParseMode.MARKDOWN,
+        "فایل‌های بعدی شما در این مسیر ذخیره می‌شوند."
     )
 
 
 # ── /clearpath ─────────────────────────────────────────────────────────────────
 
-async def cmd_clearpath(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_clearpath(client: Client, message: Message) -> None:
     cfg = get_settings()
-    user = update.effective_user
+    user = message.from_user
     if not user:
         return
-
     if not cfg.is_user_allowed(user.id):
-        await update.message.reply_text("⛔ شما مجاز به استفاده از این ربات نیستید.")
+        await message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
         return
 
     clear_user_path(user.id)
-    await update.message.reply_text(
-        "🗑 *مسیر سفارشی پاک شد.*\n"
-        "فایل‌های بعدی در مسیر پیش‌فرض (`uploads/تاریخ_امروز/`) ذخیره می‌شوند.",
-        parse_mode=ParseMode.MARKDOWN,
+    await message.reply(
+        "🗑 **مسیر سفارشی پاک شد.**\n"
+        "فایل‌های بعدی در مسیر پیش‌فرض (`uploads/تاریخ_امروز/`) ذخیره می‌شوند."
     )
 
 
 # ── /status ────────────────────────────────────────────────────────────────────
 
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_status(client: Client, message: Message) -> None:
     cfg = get_settings()
-    user = update.effective_user
+    user = message.from_user
     if not user:
         return
-
     if not cfg.is_user_allowed(user.id):
-        await update.message.reply_text("⛔ شما مجاز به استفاده از این ربات نیستید.")
+        await message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
         return
 
     custom_path = get_user_path(user.id)
-    path_display = f"`{cfg.upload_base_path}/{custom_path}/`" if custom_path else f"`{cfg.upload_base_path}/YYYY-MM-DD/` *(پیش‌فرض)*"
-
+    path_display = (
+        f"`{cfg.upload_base_path}/{custom_path}/`"
+        if custom_path
+        else f"`{cfg.upload_base_path}/YYYY-MM-DD/` *(پیش‌فرض)*"
+    )
     conflict_fa = "بازنویسی" if cfg.file_conflict_strategy == "overwrite" else "ایجاد نسخه جدید"
-    server_mode = "سرور محلی Bot API" if cfg.telegram_local_server_url else "سرورهای رسمی Telegram"
 
     status_text = (
-        "⚙️ *وضعیت فعلی ربات*\n\n"
-        f"🗂 *مخزن:* `{cfg.github_owner}/{cfg.github_repo}`\n"
-        f"🌿 *شاخه:* `{cfg.github_branch}`\n"
-        f"📁 *مسیر آپلود:* {path_display}\n"
-        f"⚠️ *تداخل فایل:* {conflict_fa}\n"
-        f"🌐 *حالت سرور:* {server_mode}\n"
+        "⚙️ **وضعیت فعلی ربات**\n\n"
+        f"🗂 **مخزن:** `{cfg.github_owner}/{cfg.github_repo}`\n"
+        f"🌿 **شاخه:** `{cfg.github_branch}`\n"
+        f"📁 **مسیر آپلود:** {path_display}\n"
+        f"⚠️ **تداخل فایل:** {conflict_fa}\n"
+        f"🌐 **حالت اتصال:** MTProto (Pyrogram)\n"
     )
 
-    await update.message.reply_text(status_text, parse_mode=ParseMode.MARKDOWN)
+    await message.reply(status_text)
 
 
 # ── Callback query handler for inline buttons ──────────────────────────────────
 
-async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
+async def callback_handler(client: Client, query: CallbackQuery) -> None:
+    """
+    Handle inline keyboard button presses.
+
+    IMPORTANT: query.from_user is the human who pressed the button.
+    query.message.from_user is the *bot* that sent the message — never
+    use query.message for user identity checks.
+    """
     await query.answer()
 
     if query.data == "show_help":
-        await query.message.reply_text(HELP_TEXT, parse_mode=ParseMode.MARKDOWN)
+        await query.message.reply(HELP_TEXT)
+
     elif query.data == "show_status":
-        # Re-use status logic via a fake update
-        await cmd_status(update, context)
+        # Build a status reply using the identity of the button-presser,
+        # not the bot that owns query.message.
+        cfg = get_settings()
+        user = query.from_user
+        if not user or not cfg.is_user_allowed(user.id):
+            await query.message.reply("⛔ شما مجاز به استفاده از این ربات نیستید.")
+            return
+
+        custom_path = get_user_path(user.id)
+        path_display = (
+            f"`{cfg.upload_base_path}/{custom_path}/`"
+            if custom_path
+            else f"`{cfg.upload_base_path}/YYYY-MM-DD/` *(پیش‌فرض)*"
+        )
+        conflict_fa = (
+            "بازنویسی" if cfg.file_conflict_strategy == "overwrite" else "ایجاد نسخه جدید"
+        )
+        await query.message.reply(
+            "⚙️ **وضعیت فعلی ربات**\n\n"
+            f"🗂 **مخزن:** `{cfg.github_owner}/{cfg.github_repo}`\n"
+            f"🌿 **شاخه:** `{cfg.github_branch}`\n"
+            f"📁 **مسیر آپلود:** {path_display}\n"
+            f"⚠️ **تداخل فایل:** {conflict_fa}\n"
+            f"🌐 **حالت اتصال:** MTProto (Pyrogram)\n"
+        )
+
     elif query.data == "show_setpath_help":
-        await query.message.reply_text(
-            "📁 *تنظیم مسیر آپلود*\n\n"
+        await query.message.reply(
+            "📁 **تنظیم مسیر آپلود**\n\n"
             "برای تنظیم پوشه سفارشی دستور زیر را ارسال کنید:\n\n"
             "`/setpath نام_پوشه`\n\n"
             "مثال:\n"
-            "`/setpath پروژه/تصاویر`",
-            parse_mode=ParseMode.MARKDOWN,
+            "`/setpath پروژه/تصاویر`"
         )

@@ -1,31 +1,28 @@
 """
 bot/services/file_service.py
 ─────────────────────────────
-Helpers for resolving the largest available Telegram file object,
+Helpers for resolving the Telegram file object from a Pyrogram Message,
 extracting a meaningful filename, and downloading the raw bytes.
 
-Telegram file-size tiers
-──────────────────────────
-• Official Bot API  → max 20 MB download / 50 MB upload (bots)
-• Local Bot API     → up to 2 000 MB (2 GB)
-
-We always download via `telegram.File.download_as_bytearray()` which
-streams in chunks internally.  For very large files (> WARN_MB) we log
-a progress note.
+Pyrogram downloads files via client.download_media() which streams
+internally and supports files up to 2 GB natively over MTProto —
+no local Bot API server required.
 """
 
 from __future__ import annotations
 
+import io
 import logging
 import mimetypes
 from typing import Any
 
-from telegram import (
+from pyrogram import Client
+from pyrogram.types import (
     Animation,
     Audio,
     Document,
     Message,
-    PhotoSize,
+    Photo,
     Sticker,
     Video,
     VideoNote,
@@ -40,14 +37,15 @@ WARN_MB = 50  # Log a notice for files larger than this
 # ── Public helpers ─────────────────────────────────────────────────────────────
 
 
-async def extract_file_info(message: Message) -> tuple[Any, str]:
+def extract_file_info(message: Message) -> tuple[Any, str]:
     """
     Return *(file_object, filename)* for the first recognised attachment
     in *message*.  Raises ValueError if no supported attachment is found.
 
-    Priority order mirrors Telegram's multipart update structure so that
-    documents (which preserve original filenames) are preferred over
-    generic photo thumbnails.
+    This is a synchronous function — Pyrogram file objects carry all
+    metadata eagerly; no network call is needed just to read the filename.
+
+    Priority: Document first (preserves original filename), then the rest.
     """
     # Document  ──────────────────────────────────────────────────────────
     if message.document:
@@ -56,10 +54,11 @@ async def extract_file_info(message: Message) -> tuple[Any, str]:
         return doc, filename
 
     # Photo ──────────────────────────────────────────────────────────────
+    # Pyrogram exposes the highest-resolution photo directly as message.photo
     if message.photo:
-        best: PhotoSize = message.photo[-1]  # last = highest resolution
-        filename = f"photo_{best.file_unique_id}.jpg"
-        return best, filename
+        photo: Photo = message.photo
+        filename = f"photo_{photo.file_unique_id}.jpg"
+        return photo, filename
 
     # Video ──────────────────────────────────────────────────────────────
     if message.video:
@@ -112,27 +111,37 @@ async def extract_file_info(message: Message) -> tuple[Any, str]:
     )
 
 
-async def download_file_bytes(file_obj: Any) -> bytes:
+async def download_file_bytes(client: Client, file_obj: Any) -> bytes:
     """
-    Download *file_obj* (any Telegram file type) and return raw bytes.
-    Logs progress for large files.
-    """
-    tg_file = await file_obj.get_file()
+    Download *file_obj* (any Pyrogram file type) and return raw bytes.
 
+    Uses client.download_media(in_memory=True) so nothing is written to
+    disk.  Pyrogram returns a BytesIO when in_memory=True.
+    Supports files up to 2 GB natively over MTProto.
+    """
     file_size = getattr(file_obj, "file_size", None)
     if file_size:
         mb = file_size / 1_048_576
-        logger.info("Downloading %.1f MB from Telegram …", mb)
+        logger.info("Downloading %.1f MB from Telegram ...", mb)
         if mb > WARN_MB:
             logger.warning(
-                "Large file (%.1f MB). Make sure you are running a local "
-                "Bot API server for files > 50 MB.",
+                "Large file (%.1f MB). Download may take a while.",
                 mb,
             )
 
-    data = await tg_file.download_as_bytearray()
+    result = await client.download_media(file_obj, in_memory=True)
+
+    if isinstance(result, io.BytesIO):
+        data = result.getvalue()
+    elif isinstance(result, (bytes, bytearray)):
+        data = bytes(result)
+    else:
+        raise RuntimeError(
+            f"download_media returned unexpected type: {type(result)}"
+        )
+
     logger.debug("Downloaded %d bytes.", len(data))
-    return bytes(data)
+    return data
 
 
 # ── Internal ───────────────────────────────────────────────────────────────────
@@ -143,7 +152,6 @@ def _ext(mime_type: str | None, fallback: str) -> str:
     if mime_type:
         guessed = mimetypes.guess_extension(mime_type)
         if guessed:
-            # mimetypes sometimes returns ".jpe" instead of ".jpg" etc.
             _fixes = {".jpe": ".jpg", ".jfif": ".jpg"}
             return _fixes.get(guessed, guessed)
     return fallback

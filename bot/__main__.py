@@ -5,25 +5,15 @@ Entry point.  Run with:
 
     python -m bot
 
-Sets up logging, builds the Application, registers all handlers,
-then starts polling via the local Bot API server.
-
-This bot always runs against a self-hosted Telegram Bot API server.
-Set TELEGRAM_LOCAL_SERVER_URL, TELEGRAM_API_ID, and TELEGRAM_API_HASH
-in your .env file before starting.
+Uses Pyrogram (MTProto) to connect directly to Telegram's servers —
+no local Bot API server required.  File size limit is 2 GB natively.
 """
 
 from __future__ import annotations
 
 import logging
 
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    MessageHandler,
-    filters,
-)
+from pyrogram import Client, filters
 
 from bot.config.logging_config import setup_logging
 from bot.config.settings import get_settings
@@ -40,57 +30,51 @@ from bot.handlers.upload import handle_file
 logger = logging.getLogger(__name__)
 
 
-def build_application() -> Application:
+def build_client() -> Client:
     cfg = get_settings()
-
-    base_url = cfg.telegram_local_server_url + "/bot"
-    base_file_url = cfg.telegram_local_server_url + "/file/bot"
-
-    logger.info("Connecting to local Bot API server: %s", cfg.telegram_local_server_url)
-
-    app = (
-        Application.builder()
-        .token(cfg.telegram_bot_token)
-        .local_mode(True)
-        .base_url(base_url)
-        .base_file_url(base_file_url)
-        .build()
+    return Client(
+        name="github_uploader_bot",
+        api_id=cfg.telegram_api_id,
+        api_hash=cfg.telegram_api_hash,
+        bot_token=cfg.telegram_bot_token,
     )
 
+
+def register_handlers(app: Client) -> None:
     # ── Commands ──────────────────────────────────────────────────────────
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("help", cmd_help))
-    app.add_handler(CommandHandler("setpath", cmd_setpath))
-    app.add_handler(CommandHandler("clearpath", cmd_clearpath))
-    app.add_handler(CommandHandler("status", cmd_status))
+    app.on_message(filters.command("start") & filters.private)(cmd_start)
+    app.on_message(filters.command("help") & filters.private)(cmd_help)
+    app.on_message(filters.command("setpath") & filters.private)(cmd_setpath)
+    app.on_message(filters.command("clearpath") & filters.private)(cmd_clearpath)
+    app.on_message(filters.command("status") & filters.private)(cmd_status)
 
     # ── Inline keyboard callbacks ─────────────────────────────────────────
-    app.add_handler(CallbackQueryHandler(callback_handler))
+    app.on_callback_query()(callback_handler)
 
-    # ── File uploads – catch all supported attachment types ───────────────
+    # ── File uploads — catch all supported media types ────────────────────
     file_filter = (
-        filters.Document.ALL
-        | filters.PHOTO
-        | filters.VIDEO
-        | filters.AUDIO
-        | filters.VOICE
-        | filters.Sticker.ALL
-        | filters.VIDEO_NOTE
-        | filters.ANIMATION
+        filters.document
+        | filters.photo
+        | filters.video
+        | filters.audio
+        | filters.voice
+        | filters.sticker
+        | filters.video_note
+        | filters.animation
     )
-    app.add_handler(MessageHandler(file_filter, handle_file))
-
-    return app
+    app.on_message(file_filter & filters.private)(handle_file)
 
 
 def main() -> None:
     cfg = get_settings()
     setup_logging(level=cfg.log_level, log_file=cfg.log_file)
-    logger.info("Starting bot … %r", cfg)
+    logger.info("Starting bot ... %r", cfg)
 
-    app = build_application()
-    logger.info("Bot is running. Press Ctrl+C to stop.")
-    app.run_polling(drop_pending_updates=True)
+    app = build_client()
+    register_handlers(app)
+
+    logger.info("Bot is running via MTProto (Pyrogram). Press Ctrl+C to stop.")
+    app.run()
 
 
 if __name__ == "__main__":

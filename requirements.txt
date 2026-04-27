@@ -1,4 +1,5 @@
-python-telegram-bot[httpx]==21.*
+pyrogram==2.0.106
+TgCrypto
 
 httpx>=0.27,<1.0
 

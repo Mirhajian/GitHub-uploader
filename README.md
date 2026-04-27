@@ -1,18 +1,20 @@
 # 📤 Telegram → GitHub File Upload Bot
 
-> یک نسخه فارسی این راهنما موجود است: [README.fa.md](README.fa.md)
+> نسخه فارسی این راهنما موجود است: [README.fa.md](README.fa.md)
 
 A Telegram bot that receives any file type and uploads it directly to a GitHub repository via the Contents API.
+
+> **No local Bot API server required** — the bot uses **Pyrogram** which connects directly to Telegram's servers over the MTProto protocol, supporting files up to **2 GB** natively.
 
 ---
 
 ## Features
 
 - **All file types** — documents, photos, videos, audio, voice, stickers, animations, video notes
+- **Direct MTProto connection** — no middleware server, up to 2 GB uploads/downloads out of the box
 - **Access control** — whitelist of allowed Telegram user IDs
 - **Conflict resolution** — overwrite existing files or auto-version them (`file_1.ext`, `file_2.ext`, …)
 - **Custom upload paths** — per-user `/setpath` command
-- **Self-hosted** — runs entirely on your own VPS via a local Telegram Bot API server (up to 2 GB files)
 - **Retry logic** — exponential back-off on GitHub secondary rate limits
 - **Admin notifications** — errors forwarded to a configured admin user
 - **Rotating log file** — 10 MB × 5 backups
@@ -27,7 +29,7 @@ telegram-github-uploader/
 │   ├── __init__.py
 │   ├── __main__.py            # Entry point – run with `python -m bot`
 │   ├── config/
-│   │   ├── __init__.py        # re-exports Settings, get_settings
+│   │   ├── __init__.py
 │   │   ├── settings.py        # All env-var configuration
 │   │   └── logging_config.py  # Root logger setup
 │   ├── handlers/
@@ -42,8 +44,8 @@ telegram-github-uploader/
 ├── .env                       # Your secrets (never commit this)
 ├── .env.example               # Template – copy and fill in
 ├── .gitignore
-├── Dockerfile
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -65,7 +67,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and fill in TELEGRAM_BOT_TOKEN, GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO
+# Edit .env and fill in the required values
 ```
 
 #### Required variables
@@ -75,8 +77,7 @@ cp .env.example .env
 | `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_API_ID` | From [my.telegram.org](https://my.telegram.org) |
 | `TELEGRAM_API_HASH` | From [my.telegram.org](https://my.telegram.org) |
-| `TELEGRAM_LOCAL_SERVER_URL` | URL of your running local Bot API server, e.g. `http://localhost:8081` |
-| `GITHUB_TOKEN` | PAT with `repo` → `contents` read/write scope |
+| `GITHUB_TOKEN` | PAT with `repo` scope (read/write contents) |
 | `GITHUB_OWNER` | Your GitHub username or org |
 | `GITHUB_REPO` | Target repository name |
 
@@ -92,44 +93,47 @@ cp .env.example .env
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `LOG_FILE` | `logs/bot.log` | Log file path |
 
-### 3. Set up and start the local Bot API server
-
-The bot requires a self-hosted [Telegram Bot API server](https://github.com/tdlib/telegram-bot-api). It must be running before you start the bot.
-
-**Install on Ubuntu/Debian:**
-
-```bash
-apt install telegram-bot-api
-```
-
-**Or build from source** (if not in your package manager):
-
-```bash
-apt install make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev
-git clone --recursive https://github.com/tdlib/telegram-bot-api.git
-cd telegram-bot-api && mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local ..
-cmake --build . --target install
-```
-
-**Run the server** (get `api-id` and `api-hash` from [my.telegram.org](https://my.telegram.org)):
-
-```bash
-telegram-bot-api \
-  --api-id=YOUR_API_ID \
-  --api-hash=YOUR_API_HASH \
-  --local \
-  --http-port=8081 \
-  --dir=/var/lib/telegram-bot-api
-```
-
-> Keep this running in the background (e.g. via `systemd` or `screen`) before starting the bot.
-
-### 4. Run the bot
+### 3. Run the bot
 
 ```bash
 python -m bot
 ```
+
+That's it. No local Bot API server needed — Pyrogram handles everything over MTProto directly.
+
+---
+
+## Getting Your Credentials
+
+### Telegram API ID & Hash (`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`)
+
+Required by Pyrogram for the direct MTProto connection.
+
+1. Go to [my.telegram.org](https://my.telegram.org) and sign in with your phone number.
+2. Click **"API development tools"**.
+3. Fill in a short app name (anything, e.g. `my-bot`) and click **"Create application"**.
+4. Copy the `App api_id` (number) and `App api_hash` (string).
+
+> ⚠️ Never share these or commit them to a public repository.
+
+### Bot Token (`TELEGRAM_BOT_TOKEN`)
+
+1. Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
+2. Follow the prompts to pick a name and username.
+3. Copy the token BotFather gives you.
+
+### GitHub Token (`GITHUB_TOKEN`)
+
+1. On GitHub go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**.
+2. Click **Generate new token (classic)**.
+3. Give it a descriptive name, set an expiry, and tick the **`repo`** scope.
+4. Click **Generate token** and copy it immediately — it won't be shown again.
+
+> ⚠️ Never commit this token or share it.
+
+### Your Telegram User ID (`ALLOWED_USER_IDS`, `ADMIN_USER_ID`)
+
+Send `/start` to [@userinfobot](https://t.me/userinfobot) — it will reply with your numeric user ID.
 
 ---
 
@@ -147,12 +151,12 @@ python -m bot
 
 ## File Size Limits
 
-| Mode | Max upload | Max download |
-|---|---|---|
-| Local Bot API server (your VPS) | 2 000 MB | 2 000 MB |
-| GitHub Contents API hard limit | **100 MB** | — |
+| Layer | Maximum |
+|---|---|
+| Pyrogram / MTProto (download from Telegram) | **2 000 MB** |
+| GitHub Contents API (upload to repo) | **100 MB** |
 
-For files > 100 MB, use [Git LFS](https://git-lfs.com) or an object storage service (S3, Cloudflare R2, etc.).
+For files larger than 100 MB, use [Git LFS](https://git-lfs.com) or an object storage service (S3, Cloudflare R2, etc.).
 
 ---
 

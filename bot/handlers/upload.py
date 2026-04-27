@@ -9,7 +9,7 @@ Flow
 1. Authorisation check
 2. Extract file object + original filename
 3. Send "در حال پردازش…" feedback
-4. Download bytes from Telegram
+4. Download bytes from Telegram via Pyrogram
 5. Upload to GitHub via GitHubService
 6. Edit feedback message with rich success reply
 7. Forward errors to admin (if configured)
@@ -19,9 +19,8 @@ from __future__ import annotations
 
 import logging
 
-from telegram import Message, Update
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from pyrogram import Client
+from pyrogram.types import Message
 
 from bot.config.settings import get_settings
 from bot.handlers.commands import get_user_path
@@ -41,31 +40,33 @@ logger = logging.getLogger(__name__)
 _github_service = GitHubService()
 
 
-async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_file(client: Client, message: Message) -> None:
     """Entry point for all messages that contain a supported file."""
     cfg = get_settings()
-    message: Message = update.effective_message  # type: ignore[assignment]
-    user = update.effective_user
+    user = message.from_user
 
     if not user:
         return
 
     # ── 1. Authorisation ────────────────────────────────────────────────
     if not cfg.is_user_allowed(user.id):
-        await message.reply_text(
+        await message.reply(
             "⛔ *دسترسی رد شد.*\n"
             "شما در لیست کاربران مجاز نیستید.\n"
             "لطفاً با مدیر ربات تماس بگیرید.",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        logger.warning("Unauthorized upload attempt by user %d (@%s).", user.id, user.username)
+        logger.warning(
+            "Unauthorized upload attempt by user %d (@%s).",
+            user.id,
+            user.username,
+        )
         return
 
     # ── 2. Extract file info ─────────────────────────────────────────────
     try:
-        file_obj, filename = await extract_file_info(message)
+        file_obj, filename = extract_file_info(message)
     except ValueError as exc:
-        await message.reply_text(f"⚠️ {exc}")
+        await message.reply(f"⚠️ {exc}")
         return
 
     logger.info(
@@ -76,25 +77,22 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
     # ── 3. Send progress feedback ────────────────────────────────────────
-    progress_msg = await message.reply_text(
+    progress_msg = await message.reply(
         f"⏳ *در حال پردازش فایل…*\n📄 `{filename}`",
-        parse_mode=ParseMode.MARKDOWN,
     )
 
     # ── 4. Download from Telegram ────────────────────────────────────────
     try:
         await progress_msg.edit_text(
             f"⬇️ *در حال دانلود از Telegram…*\n📄 `{filename}`",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        file_bytes = await download_file_bytes(file_obj)
+        file_bytes = await download_file_bytes(client, file_obj)
     except Exception as exc:
         logger.error("Failed to download file '%s': %s", filename, exc)
         await progress_msg.edit_text(
             f"❌ *خطا در دانلود فایل*\n\n`{exc}`",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        await _notify_admin(context, user.id, filename, exc)
+        await _notify_admin(client, user.id, filename, exc)
         return
 
     size_mb = len(file_bytes) / 1_048_576
@@ -104,7 +102,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await progress_msg.edit_text(
             f"⬆️ *در حال آپلود به GitHub…*\n"
             f"📄 `{filename}` ({size_mb:.2f} MB)",
-            parse_mode=ParseMode.MARKDOWN,
         )
 
         custom_folder = get_user_path(user.id)
@@ -120,51 +117,44 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             f"{exc}\n\n"
             "💡 *پیشنهاد:* از [Git LFS](https://git-lfs.com) یا یک سرویس "
             "ابری مانند S3 / Cloudflare R2 استفاده کنید.",
-            parse_mode=ParseMode.MARKDOWN,
             disable_web_page_preview=True,
         )
         return
     except RateLimitError as exc:
         await progress_msg.edit_text(
             f"🚦 *محدودیت نرخ GitHub!*\n\n{exc}",
-            parse_mode=ParseMode.MARKDOWN,
         )
         return
     except AuthError as exc:
         await progress_msg.edit_text(
             f"🔑 *خطای احراز هویت GitHub*\n\n{exc}",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        await _notify_admin(context, user.id, filename, exc)
+        await _notify_admin(client, user.id, filename, exc)
         return
     except PermissionError as exc:
         await progress_msg.edit_text(
             f"🔒 *خطای دسترسی GitHub*\n\n{exc}",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        await _notify_admin(context, user.id, filename, exc)
+        await _notify_admin(client, user.id, filename, exc)
         return
     except GitHubError as exc:
         logger.error("GitHub upload failed for '%s': %s", filename, exc)
         await progress_msg.edit_text(
             f"❌ *آپلود ناموفق بود!*\n\n{exc}",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        await _notify_admin(context, user.id, filename, exc)
+        await _notify_admin(client, user.id, filename, exc)
         return
     except Exception as exc:
         logger.exception("Unexpected error during upload of '%s'", filename)
         await progress_msg.edit_text(
             "❌ *یک خطای غیرمنتظره رخ داد.*\n"
             "لطفاً دوباره امتحان کنید یا با مدیر تماس بگیرید.",
-            parse_mode=ParseMode.MARKDOWN,
         )
-        await _notify_admin(context, user.id, filename, exc)
+        await _notify_admin(client, user.id, filename, exc)
         return
 
     # ── 6. Success reply ─────────────────────────────────────────────────
     action_label = "🔄 بازنویسی شد" if result.was_overwrite else "✅ آپلود شد"
-    cfg = get_settings()
 
     success_text = (
         f"{action_label} *فایل با موفقیت ذخیره شد!*\n\n"
@@ -179,7 +169,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     await progress_msg.edit_text(
         success_text,
-        parse_mode=ParseMode.MARKDOWN,
         disable_web_page_preview=True,
     )
 
@@ -195,7 +184,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 # ── Admin notification ──────────────────────────────────────────────────────────
 
 async def _notify_admin(
-    context: ContextTypes.DEFAULT_TYPE,
+    client: Client,
     user_id: int,
     filename: str,
     error: Exception,
@@ -204,7 +193,7 @@ async def _notify_admin(
     if not cfg.admin_user_id:
         return
     try:
-        await context.bot.send_message(
+        await client.send_message(
             chat_id=cfg.admin_user_id,
             text=(
                 f"⚠️ *گزارش خطا*\n\n"
@@ -212,7 +201,6 @@ async def _notify_admin(
                 f"📄 فایل: `{filename}`\n"
                 f"❌ خطا: `{type(error).__name__}: {error}`"
             ),
-            parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as notify_exc:
         logger.warning("Could not notify admin: %s", notify_exc)

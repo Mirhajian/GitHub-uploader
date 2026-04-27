@@ -2,15 +2,17 @@
 
 این ربات تلگرام هر نوع فایلی را دریافت کرده و آن را مستقیماً از طریق GitHub Contents API در یک مخزن گیت‌هاب ذخیره می‌کند.
 
+> **بدون نیاز به سرور Bot API محلی** — ربات از کتابخانه **Pyrogram** استفاده می‌کند که مستقیماً از طریق پروتکل MTProto به سرورهای تلگرام متصل می‌شود و از فایل‌های تا **۲ گیگابایت** پشتیبانی می‌کند.
+
 ---
 
 ## امکانات
 
 - **پشتیبانی از همه انواع فایل** — سند، عکس، ویدیو، صدا، ویس، استیکر، انیمیشن، ویدیو گرد
+- **پروتکل MTProto مستقیم** — بدون سرور میانی، آپلود/دانلود تا ۲ گیگابایت
 - **کنترل دسترسی** — لیست سفید کاربران مجاز تلگرام
 - **مدیریت تداخل فایل** — بازنویسی یا نسخه‌بندی خودکار (`file_1.ext`، `file_2.ext`، …)
 - **مسیر آپلود سفارشی** — دستور `/setpath` برای هر کاربر
-- **سرور اختصاصی** — کاملاً روی VPS شما اجرا می‌شود از طریق سرور Bot API محلی تلگرام (تا ۲ گیگابایت)
 - **تلاش مجدد خودکار** — با تأخیر نمایی در صورت محدودیت نرخ گیت‌هاب
 - **اطلاع‌رسانی به ادمین** — ارسال خطاها به کاربر ادمین تنظیم‌شده
 - **لاگ فایل چرخشی** — ۱۰ مگابایت × ۵ نسخه پشتیبان
@@ -41,7 +43,7 @@ telegram-github-uploader/
 ├── .env.example               ← قالب — کپی کرده و پر کنید
 ├── .gitignore
 ├── requirements.txt
-└── README.md
+└── README.fa.md
 ```
 
 ---
@@ -67,44 +69,13 @@ cp .env.example .env
 
 سپس فایل `.env` را باز کرده و مقادیر را پر کنید (راهنمای هر مقدار در ادامه آمده است).
 
-### ۳. راه‌اندازی سرور Bot API محلی تلگرام
-
-این ربات نیاز به یک [سرور Bot API محلی تلگرام](https://github.com/tdlib/telegram-bot-api) دارد که روی VPS شما اجرا شود. این سرور باید **قبل از** اجرای ربات در حال اجرا باشد.
-
-**نصب روی Ubuntu/Debian:**
-
-```bash
-apt install telegram-bot-api
-```
-
-**یا ساخت از سورس** (اگر در پکیج منیجر موجود نبود):
-
-```bash
-apt install make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev
-git clone --recursive https://github.com/tdlib/telegram-bot-api.git
-cd telegram-bot-api && mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local ..
-cmake --build . --target install
-```
-
-**اجرای سرور** (مقادیر `api-id` و `api-hash` را از [my.telegram.org](https://my.telegram.org) دریافت کنید — راهنما در ادامه):
-
-```bash
-telegram-bot-api \
-  --api-id=YOUR_API_ID \
-  --api-hash=YOUR_API_HASH \
-  --local \
-  --http-port=8081 \
-  --dir=/var/lib/telegram-bot-api
-```
-
-> این سرور باید همیشه در پس‌زمینه در حال اجرا باشد (مثلاً با `systemd` یا `screen`).
-
-### ۴. اجرای ربات
+### ۳. اجرای ربات
 
 ```bash
 python -m bot
 ```
+
+دیگر نیازی به سرور Bot API محلی نیست. Pyrogram مستقیماً از طریق MTProto به سرورهای تلگرام متصل می‌شود.
 
 ---
 
@@ -112,11 +83,11 @@ python -m bot
 
 ### 🔐 شناسه و هش API تلگرام (`TELEGRAM_API_ID` و `TELEGRAM_API_HASH`)
 
-این مقادیر برای اجرای سرور Bot API محلی الزامی هستند.
+این مقادیر برای Pyrogram (اتصال MTProto مستقیم) الزامی هستند.
 
 ۱. به [my.telegram.org](https://my.telegram.org) بروید و با شماره تلفن تلگرام خود وارد شوید.
 ۲. روی **"API development tools"** کلیک کنید.
-۳. یک فرم کوچک نمایش داده می‌شود — نام و توضیح کوتاهی برای اپلیکیشن خود بنویسید (هر چیزی مثل `my-bot`).
+۳. یک فرم کوچک نمایش داده می‌شود — نام و توضیح کوتاهی برای اپلیکیشن خود بنویسید (مثلاً `my-bot`).
 ۴. روی **"Create application"** کلیک کنید.
 ۵. مقادیر `App api_id` (عدد) و `App api_hash` (رشته) را کپی کنید.
 
@@ -129,18 +100,6 @@ TELEGRAM_API_HASH=abcdef1234567890abcdef1234567890
 
 ---
 
-### 🌐 آدرس سرور محلی (`TELEGRAM_LOCAL_SERVER_URL`)
-
-پس از راه‌اندازی سرور Bot API روی VPS (مرحله ۳ بالا)، این آدرس را در `.env` قرار دهید:
-
-```
-TELEGRAM_LOCAL_SERVER_URL=http://localhost:8081
-```
-
-اگر ربات روی یک سرور دیگر اجرا می‌شود، `localhost` را با IP سرور Bot API جایگزین کنید.
-
----
-
 ### 🤖 توکن ربات تلگرام (`TELEGRAM_BOT_TOKEN`)
 
 ۱. در تلگرام، [@BotFather](https://t.me/BotFather) را جستجو کرده و شروع کنید.
@@ -148,12 +107,6 @@ TELEGRAM_LOCAL_SERVER_URL=http://localhost:8081
 ۳. یک نام برای ربات انتخاب کنید (مثال: `My File Uploader`).
 ۴. یک نام کاربری انتخاب کنید که به `bot` ختم شود (مثال: `myfileuploader_bot`).
 ۵. BotFather یک توکن مانند زیر به شما می‌دهد:
-
-```
-1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-این مقدار را در `.env` قرار دهید:
 
 ```
 TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -179,7 +132,7 @@ TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ۷. در بخش Expiration یک زمان انقضا انتخاب کنید (یا `No expiration`).
 
-۸. در بخش Select scopes**، تیک **`repo` را بزنید (تمام زیرمجموعه‌ها انتخاب می‌شوند).
+۸. در بخش **Select scopes**، تیک **`repo`** را بزنید.
 
 ۹. روی Generate token کلیک کنید.
 
@@ -189,19 +142,14 @@ TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> ⚠️ **هشدار:** این توکن را در هیچ فایلی کامیت نکنید و با کسی به اشتراک نگذارید.
+> ⚠️ این توکن را در هیچ فایلی کامیت نکنید و با کسی به اشتراک نگذارید.
 
 ---
 
 ### 📁 اطلاعات مخزن گیت‌هاب
 
-**`GITHUB_OWNER`** — نام کاربری یا سازمان گیت‌هاب شما.
-برای پیدا کردن آن، به صفحه مخزن در گیت‌هاب بروید. در آدرس زیر:
-`https://github.com/USERNAME/REPONAME`
-بخش `USERNAME` همان `GITHUB_OWNER` است.
-
-**`GITHUB_REPO`** — نام مخزن (بخش `REPONAME` در آدرس بالا).
-
+**`GITHUB_OWNER`** — نام کاربری یا سازمان گیت‌هاب شما.  
+**`GITHUB_REPO`** — نام مخزن.  
 **`GITHUB_BRANCH`** — نام شاخه‌ای که فایل‌ها در آن ذخیره می‌شوند (معمولاً `main` یا `master`).
 
 ```
@@ -238,7 +186,6 @@ ADMIN_USER_ID=123456789
 | `TELEGRAM_BOT_TOKEN` | ✅ | — | توکن ربات از BotFather |
 | `TELEGRAM_API_ID` | ✅ | — | شناسه API از my.telegram.org |
 | `TELEGRAM_API_HASH` | ✅ | — | هش API از my.telegram.org |
-| `TELEGRAM_LOCAL_SERVER_URL` | ✅ | — | آدرس سرور Bot API محلی (مثلاً `http://localhost:8081`) |
 | `GITHUB_TOKEN` | ✅ | — | توکن دسترسی شخصی گیت‌هاب |
 | `GITHUB_OWNER` | ✅ | — | نام کاربری یا سازمان گیت‌هاب |
 | `GITHUB_REPO` | ✅ | — | نام مخزن |
@@ -266,10 +213,10 @@ ADMIN_USER_ID=123456789
 
 ## محدودیت حجم فایل
 
-| حالت | حداکثر آپلود | حداکثر دانلود |
-|---|---|---|
-| سرور Bot API محلی (VPS شما) | ۲۰۰۰ مگابایت | ۲۰۰۰ مگابایت |
-| حد سخت GitHub Contents API | **۱۰۰ مگابایت** | — |
+| لایه | حداکثر |
+|---|---|
+| Pyrogram / MTProto (دانلود از تلگرام) | **۲۰۰۰ مگابایت** |
+| GitHub Contents API (آپلود به مخزن) | **۱۰۰ مگابایت** |
 
 برای فایل‌های بیش از ۱۰۰ مگابایت از [Git LFS](https://git-lfs.com) یا یک سرویس ذخیره‌سازی ابری (مانند S3 یا Cloudflare R2) استفاده کنید.
 
@@ -287,8 +234,3 @@ uploads/2024-01-15/photo.jpg
 uploads/پروژه/تصاویر/photo.jpg
 ```
 
----
-
-## لایسنس
-
-MIT
