@@ -10,7 +10,7 @@
 - **کنترل دسترسی** — لیست سفید کاربران مجاز تلگرام
 - **مدیریت تداخل فایل** — بازنویسی یا نسخه‌بندی خودکار (`file_1.ext`، `file_2.ext`، …)
 - **مسیر آپلود سفارشی** — دستور `/setpath` برای هر کاربر
-- **پشتیبانی از فایل‌های بزرگ** — با سرور Bot API محلی تا ۲ گیگابایت
+- **سرور اختصاصی** — کاملاً روی VPS شما اجرا می‌شود از طریق سرور Bot API محلی تلگرام (تا ۲ گیگابایت)
 - **تلاش مجدد خودکار** — با تأخیر نمایی در صورت محدودیت نرخ گیت‌هاب
 - **اطلاع‌رسانی به ادمین** — ارسال خطاها به کاربر ادمین تنظیم‌شده
 - **لاگ فایل چرخشی** — ۱۰ مگابایت × ۵ نسخه پشتیبان
@@ -54,7 +54,6 @@ telegram-github-uploader/
 git clone https://github.com/mirhajian/GitHub-uploader.git
 cd GitHub-uploader
 
-
 python -m venv .venv
 source .venv/bin/activate        # ویندوز: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -68,7 +67,40 @@ cp .env.example .env
 
 سپس فایل `.env` را باز کرده و مقادیر را پر کنید (راهنمای هر مقدار در ادامه آمده است).
 
-### ۳. اجرای ربات
+### ۳. راه‌اندازی سرور Bot API محلی تلگرام
+
+این ربات نیاز به یک [سرور Bot API محلی تلگرام](https://github.com/tdlib/telegram-bot-api) دارد که روی VPS شما اجرا شود. این سرور باید **قبل از** اجرای ربات در حال اجرا باشد.
+
+**نصب روی Ubuntu/Debian:**
+
+```bash
+apt install telegram-bot-api
+```
+
+**یا ساخت از سورس** (اگر در پکیج منیجر موجود نبود):
+
+```bash
+apt install make git zlib1g-dev libssl-dev gperf cmake clang libc++-dev libc++abi-dev
+git clone --recursive https://github.com/tdlib/telegram-bot-api.git
+cd telegram-bot-api && mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local ..
+cmake --build . --target install
+```
+
+**اجرای سرور** (مقادیر `api-id` و `api-hash` را از [my.telegram.org](https://my.telegram.org) دریافت کنید — راهنما در ادامه):
+
+```bash
+telegram-bot-api \
+  --api-id=YOUR_API_ID \
+  --api-hash=YOUR_API_HASH \
+  --local \
+  --http-port=8081 \
+  --dir=/var/lib/telegram-bot-api
+```
+
+> این سرور باید همیشه در پس‌زمینه در حال اجرا باشد (مثلاً با `systemd` یا `screen`).
+
+### ۴. اجرای ربات
 
 ```bash
 python -m bot
@@ -77,6 +109,37 @@ python -m bot
 ---
 
 ## راهنمای دریافت مقادیر لازم
+
+### 🔐 شناسه و هش API تلگرام (`TELEGRAM_API_ID` و `TELEGRAM_API_HASH`)
+
+این مقادیر برای اجرای سرور Bot API محلی الزامی هستند.
+
+۱. به [my.telegram.org](https://my.telegram.org) بروید و با شماره تلفن تلگرام خود وارد شوید.
+۲. روی **"API development tools"** کلیک کنید.
+۳. یک فرم کوچک نمایش داده می‌شود — نام و توضیح کوتاهی برای اپلیکیشن خود بنویسید (هر چیزی مثل `my-bot`).
+۴. روی **"Create application"** کلیک کنید.
+۵. مقادیر `App api_id` (عدد) و `App api_hash` (رشته) را کپی کنید.
+
+```
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=abcdef1234567890abcdef1234567890
+```
+
+> ⚠️ این مقادیر را با کسی به اشتراک نگذارید و در فایل‌های عمومی کامیت نکنید.
+
+---
+
+### 🌐 آدرس سرور محلی (`TELEGRAM_LOCAL_SERVER_URL`)
+
+پس از راه‌اندازی سرور Bot API روی VPS (مرحله ۳ بالا)، این آدرس را در `.env` قرار دهید:
+
+```
+TELEGRAM_LOCAL_SERVER_URL=http://localhost:8081
+```
+
+اگر ربات روی یک سرور دیگر اجرا می‌شود، `localhost` را با IP سرور Bot API جایگزین کنید.
+
+---
 
 ### 🤖 توکن ربات تلگرام (`TELEGRAM_BOT_TOKEN`)
 
@@ -102,26 +165,25 @@ TELEGRAM_BOT_TOKEN=1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 این یک «Personal Access Token» (PAT) است که به ربات اجازه می‌دهد فایل در مخزن شما بنویسد.
 
-۱. به [github.com](https://github.com) وارد شوید.
+۱. به github.com وارد شوید.
 
-۲. از گوشه بالا-راست روی عکس پروفایل خود کلیک کنید ← **Settings**.
+۲. از گوشه بالا-راست روی عکس پروفایل خود کلیک کنید ← Settings.
 
-۳. از منوی چپ به پایین اسکرول کنید ← **Developer settings**.
+۳. از منوی چپ به پایین اسکرول کنید ← Developer settings.
 
-۴. روی **Personal access tokens** کلیک کنید ← **Tokens (classic)**.
+۴. روی Personal access tokens کلیک کنید ← Tokens (classic).
 
-۵. روی **Generate new token** ← **Generate new token (classic)** کلیک کنید.
+۵. روی Generate new token ← Generate new token (classic) کلیک کنید.
 
 ۶. یک نام توضیحی بنویسید (مثال: `telegram-uploader-bot`).
 
-۷. در بخش **Expiration** یک زمان انقضا انتخاب کنید (یا `No expiration`).
+۷. در بخش Expiration یک زمان انقضا انتخاب کنید (یا `No expiration`).
 
-۸. در بخش **Select scopes**، تیک **`repo`** را بزنید (تمام زیرمجموعه‌ها انتخاب می‌شوند).
+۸. در بخش Select scopes**، تیک **`repo` را بزنید (تمام زیرمجموعه‌ها انتخاب می‌شوند).
 
-۹. روی **Generate token** کلیک کنید.
+۹. روی Generate token کلیک کنید.
 
-۱۰. توکن را **همان لحظه** کپی کنید — بعد از بستن صفحه دیگر نمایش داده نمی‌شود.
-
+۱۰. توکن را همان لحظه کپی کنید — بعد از بستن صفحه دیگر نمایش داده نمی‌شود.
 
 ```
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -174,6 +236,9 @@ ADMIN_USER_ID=123456789
 | متغیر | اجباری | پیش‌فرض | توضیح |
 |---|---|---|---|
 | `TELEGRAM_BOT_TOKEN` | ✅ | — | توکن ربات از BotFather |
+| `TELEGRAM_API_ID` | ✅ | — | شناسه API از my.telegram.org |
+| `TELEGRAM_API_HASH` | ✅ | — | هش API از my.telegram.org |
+| `TELEGRAM_LOCAL_SERVER_URL` | ✅ | — | آدرس سرور Bot API محلی (مثلاً `http://localhost:8081`) |
 | `GITHUB_TOKEN` | ✅ | — | توکن دسترسی شخصی گیت‌هاب |
 | `GITHUB_OWNER` | ✅ | — | نام کاربری یا سازمان گیت‌هاب |
 | `GITHUB_REPO` | ✅ | — | نام مخزن |
@@ -182,7 +247,6 @@ ADMIN_USER_ID=123456789
 | `FILE_CONFLICT_STRATEGY` | ❌ | `version` | `overwrite` یا `version` |
 | `ALLOWED_USER_IDS` | ❌ | *(همه)* | شناسه‌های مجاز با کاما جدا |
 | `ADMIN_USER_ID` | ❌ | *(هیچ)* | شناسه ادمین برای دریافت خطاها |
-| `TELEGRAM_LOCAL_SERVER_URL` | ❌ | *(هیچ)* | آدرس سرور Bot API محلی |
 | `LOG_LEVEL` | ❌ | `INFO` | سطح لاگ: `DEBUG`، `INFO`، `WARNING` |
 | `LOG_FILE` | ❌ | `logs/bot.log` | مسیر فایل لاگ |
 
@@ -204,8 +268,7 @@ ADMIN_USER_ID=123456789
 
 | حالت | حداکثر آپلود | حداکثر دانلود |
 |---|---|---|
-| سرورهای رسمی تلگرام | ۵۰ مگابایت | ۲۰ مگابایت |
-| سرور Bot API محلی | ۲۰۰۰ مگابایت | ۲۰۰۰ مگابایت |
+| سرور Bot API محلی (VPS شما) | ۲۰۰۰ مگابایت | ۲۰۰۰ مگابایت |
 | حد سخت GitHub Contents API | **۱۰۰ مگابایت** | — |
 
 برای فایل‌های بیش از ۱۰۰ مگابایت از [Git LFS](https://git-lfs.com) یا یک سرویس ذخیره‌سازی ابری (مانند S3 یا Cloudflare R2) استفاده کنید.
@@ -225,3 +288,7 @@ uploads/پروژه/تصاویر/photo.jpg
 ```
 
 ---
+
+## لایسنس
+
+MIT

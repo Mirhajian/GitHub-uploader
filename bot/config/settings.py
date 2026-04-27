@@ -25,7 +25,9 @@ class Settings:
 
     # ── Telegram ──────────────────────────────────────────────────────────
     telegram_bot_token: str
-    telegram_local_server_url: str | None  # None → use official Telegram servers
+    telegram_api_id: int                  # From https://my.telegram.org
+    telegram_api_hash: str                # From https://my.telegram.org
+    telegram_local_server_url: str        # e.g. "http://localhost:8081"
 
     # ── GitHub ────────────────────────────────────────────────────────────
     github_token: str
@@ -34,7 +36,7 @@ class Settings:
     github_branch: str
 
     # ── Upload behaviour ─────────────────────────────────────────────────
-    upload_base_path: str                          # e.g. "uploads"
+    upload_base_path: str
     file_conflict_strategy: Literal["overwrite", "version"]
 
     # ── Access control ────────────────────────────────────────────────────
@@ -48,12 +50,25 @@ class Settings:
     def __init__(self) -> None:
         # ── Required ──────────────────────────────────────────────────────
         self.telegram_bot_token = self._require("TELEGRAM_BOT_TOKEN")
+        self.telegram_api_hash = self._require("TELEGRAM_API_HASH")
         self.github_token = self._require("GITHUB_TOKEN")
         self.github_owner = self._require("GITHUB_OWNER")
         self.github_repo = self._require("GITHUB_REPO")
 
+        # TELEGRAM_API_ID must be a valid integer
+        api_id_raw = self._require("TELEGRAM_API_ID")
+        try:
+            self.telegram_api_id = int(api_id_raw)
+        except ValueError:
+            raise ValueError(
+                "TELEGRAM_API_ID must be a number. "
+                "Get it from https://my.telegram.org."
+            )
+
+        # TELEGRAM_LOCAL_SERVER_URL is required — this bot runs on its own server
+        self.telegram_local_server_url = self._require("TELEGRAM_LOCAL_SERVER_URL").rstrip("/")
+
         # ── Optional with defaults ─────────────────────────────────────────
-        self.telegram_local_server_url = os.getenv("TELEGRAM_LOCAL_SERVER_URL") or None
         self.github_branch = os.getenv("GITHUB_BRANCH", "main")
         self.upload_base_path = os.getenv("UPLOAD_BASE_PATH", "uploads").strip("/")
 
@@ -102,13 +117,14 @@ class Settings:
     def is_user_allowed(self, user_id: int) -> bool:
         """Return True if the user_id is in the whitelist (or whitelist is empty = open)."""
         if not self.allowed_user_ids:
-            return True  # no restriction configured
+            return True
         return user_id in self.allowed_user_ids
 
     def __repr__(self) -> str:
         return (
             f"<Settings owner={self.github_owner} repo={self.github_repo} "
-            f"branch={self.github_branch} conflict={self.file_conflict_strategy}>"
+            f"branch={self.github_branch} conflict={self.file_conflict_strategy} "
+            f"local_server={self.telegram_local_server_url}>"
         )
 
 

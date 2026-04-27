@@ -6,7 +6,11 @@ Entry point.  Run with:
     python -m bot
 
 Sets up logging, builds the Application, registers all handlers,
-then starts the bot (polling by default, or webhook if configured).
+then starts polling via the local Bot API server.
+
+This bot always runs against a self-hosted Telegram Bot API server.
+Set TELEGRAM_LOCAL_SERVER_URL, TELEGRAM_API_ID, and TELEGRAM_API_HASH
+in your .env file before starting.
 """
 
 from __future__ import annotations
@@ -39,17 +43,19 @@ logger = logging.getLogger(__name__)
 def build_application() -> Application:
     cfg = get_settings()
 
-    builder = Application.builder().token(cfg.telegram_bot_token)
+    base_url = cfg.telegram_local_server_url + "/bot"
+    base_file_url = cfg.telegram_local_server_url + "/file/bot"
 
-    if cfg.telegram_local_server_url:
-        builder = builder.local_mode(True).base_url(
-            cfg.telegram_local_server_url.rstrip("/") + "/bot"
-        )
-        logger.info("Using local Bot API server: %s", cfg.telegram_local_server_url)
-    else:
-        logger.info("Using official Telegram servers.")
+    logger.info("Connecting to local Bot API server: %s", cfg.telegram_local_server_url)
 
-    app = builder.build()
+    app = (
+        Application.builder()
+        .token(cfg.telegram_bot_token)
+        .local_mode(True)
+        .base_url(base_url)
+        .base_file_url(base_file_url)
+        .build()
+    )
 
     # ── Commands ──────────────────────────────────────────────────────────
     app.add_handler(CommandHandler("start", cmd_start))
