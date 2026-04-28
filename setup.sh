@@ -7,7 +7,7 @@
 #   2. Checks Python version (3.10+)
 #   3. Creates a virtual environment and installs Python dependencies
 #   4. Walks you through every config value and writes .env
-#   5. Optionally enables Git LFS on the target repository
+#   5. Enables Git LFS on the target repository (fully automated via API)
 #   6. Optionally sets up a systemd service so the bot starts on reboot
 #
 # Usage:
@@ -313,33 +313,108 @@ EOF
 fi
 
 # ── Step 5: Git LFS ───────────────────────────────────────────────────────────
-section "Step 5 / 6  —  Git LFS"
+section "Step 5 / 6  —  Git LFS  (fully automated)"
 
-LFS_MB_VAL=$(grep -E '^LFS_THRESHOLD_MB=' .env 2>/dev/null | cut -d= -f2 || echo "50")
+# Read the values we need from .env (works whether we just wrote it or it existed)
+_lfs_threshold=$(grep -E '^LFS_THRESHOLD_MB=' .env 2>/dev/null | cut -d= -f2 || echo "50")
+_gh_token=$(grep -E '^GITHUB_TOKEN='  .env 2>/dev/null | cut -d= -f2 || echo "")
+_gh_owner=$(grep -E '^GITHUB_OWNER='  .env 2>/dev/null | cut -d= -f2 || echo "")
+_gh_repo=$( grep -E '^GITHUB_REPO='   .env 2>/dev/null | cut -d= -f2 || echo "")
+_gh_branch=$(grep -E '^GITHUB_BRANCH=' .env 2>/dev/null | cut -d= -f2 || echo "main")
+
 echo ""
-info  "Your LFS threshold: ${BOLD}${LFS_MB_VAL} MB${RESET}"
-info  "Files at or above this size will be stored via Git LFS instead of the Contents API."
+info "Your LFS threshold: ${BOLD}${_lfs_threshold} MB${RESET}"
+info "Files at or above this size will be stored via Git LFS."
 echo ""
 
+# ── 5a. Install git-lfs hooks in the local clone ─────────────────────────────
 if command -v git-lfs &>/dev/null; then
-    if prompt_yesno "  Configure Git LFS in this repository now?"; then
-        git lfs install --skip-repo 2>/dev/null || git lfs install
-        git lfs track "uploads/**" 2>/dev/null || true
-        if [[ ! -f .gitattributes ]]; then
-            echo "uploads/** filter=lfs diff=lfs merge=lfs -text" > .gitattributes
+    git lfs install --skip-repo 2>/dev/null || git lfs install
+    success "git-lfs hooks installed locally."
+else
+    warn "git-lfs not found — skipping local install (was it installed in Step 1?)."
+fi
+
+# ── 5b. Push .gitattributes to the remote repo via GitHub API ────────────────
+#
+# This is the part that used to require manual work on a local machine.
+# We do it entirely through the GitHub Contents API, so no local clone of the
+# *target* repo is needed.
+#
+if [[ -n "$_gh_token" && -n "$_gh_owner" && -n "$_gh_repo" ]]; then
+    echo ""
+    step "Configuring Git LFS on the remote repository (${_gh_owner}/${_gh_repo})"
+    echo ""
+
+    _GITATTRIBUTES_CONTENT="* filter=lfs diff=lfs merge=lfs -text"
+    _GITATTRIBUTES_B64=$(printf '%s\n' "$_GITATTRIBUTES_CONTENT" | base64 -w 0)
+    _API="https://api.github.com/repos/${_gh_owner}/${_gh_repo}/contents/.gitattributes"
+
+    # Check whether .gitattributes already exists (need its SHA to update it)
+    _existing_sha=""
+    _check_resp=$(curl -s -o /tmp/_ga_check.json -w "%{http_code}" \
+        -H "Authorization: token ${_gh_token}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$_API?ref=${_gh_branch}")
+
+    if [[ "$_check_resp" == "200" ]]; then
+        _existing_sha=$(python3 -c "import json,sys; d=json.load(open('/tmp/_ga_check.json')); print(d.get('sha',''))" 2>/dev/null || echo "")
+        _existing_content_b64=$(python3 -c "import json,sys; d=json.load(open('/tmp/_ga_check.json')); print(d.get('content','').replace('\n',''))" 2>/dev/null || echo "")
+
+        # Decode existing content and check if LFS is already configured
+        _existing_content=$(printf '%s' "$_existing_content_b64" | base64 -d 2>/dev/null || echo "")
+        if echo "$_existing_content" | grep -q "filter=lfs"; then
+            success ".gitattributes already contains LFS config — no changes needed."
+            _skip_lfs_push=true
+        else
+            info ".gitattributes exists but has no LFS config — will update it."
+            _skip_lfs_push=false
+            # Merge: append our line to whatever is already there
+            _merged_content=$(printf '%s\n%s\n' "$_existing_content" "$_GITATTRIBUTES_CONTENT")
+            _GITATTRIBUTES_B64=$(printf '%s' "$_merged_content" | base64 -w 0)
         fi
-        git add .gitattributes 2>/dev/null || true
-        echo ""
-        success "Git LFS configured."
-        warn  "Remember to commit and push .gitattributes:"
-        echo  ""
-        echo -e "    ${CYAN}git commit -m 'chore: enable Git LFS for uploads'${RESET}"
-        echo -e "    ${CYAN}git push${RESET}"
+    elif [[ "$_check_resp" == "404" ]]; then
+        info ".gitattributes not found — will create it."
+        _skip_lfs_push=false
+    else
+        warn "Could not check .gitattributes (HTTP ${_check_resp}) — skipping LFS remote setup."
+        _skip_lfs_push=true
+    fi
+
+    if [[ "${_skip_lfs_push:-false}" == "false" ]]; then
+        # Build JSON payload (with or without sha field)
+        if [[ -n "$_existing_sha" ]]; then
+            _payload=$(printf '{"message":"chore: enable Git LFS for all files","content":"%s","branch":"%s","sha":"%s"}' \
+                "$_GITATTRIBUTES_B64" "$_gh_branch" "$_existing_sha")
+        else
+            _payload=$(printf '{"message":"chore: enable Git LFS for all files","content":"%s","branch":"%s"}' \
+                "$_GITATTRIBUTES_B64" "$_gh_branch")
+        fi
+
+        _put_resp=$(curl -s -o /tmp/_ga_put.json -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: token ${_gh_token}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            -d "$_payload" \
+            "$_API")
+
+        if [[ "$_put_resp" == "200" || "$_put_resp" == "201" ]]; then
+            success ".gitattributes pushed to ${_gh_owner}/${_gh_repo} (branch: ${_gh_branch})."
+            success "Git LFS is now active on the remote repository. ✓"
+        else
+            _err_msg=$(python3 -c "import json; d=json.load(open('/tmp/_ga_put.json')); print(d.get('message','unknown'))" 2>/dev/null || echo "unknown")
+            warn "Could not push .gitattributes (HTTP ${_put_resp}: ${_err_msg})."
+            warn "You may need to do this manually — see the README for instructions."
+        fi
     fi
 else
-    warn "git-lfs not found (it should have been installed in Step 1)."
-    warn "If you skipped apt install, run: sudo apt install git-lfs"
+    warn "GitHub credentials not found in .env — skipping remote LFS setup."
+    warn "Run setup.sh again after filling in .env, or follow the manual steps in the README."
 fi
+
+# Clean up temp files
+rm -f /tmp/_ga_check.json /tmp/_ga_put.json
 
 # ── Step 6: systemd service ───────────────────────────────────────────────────
 section "Step 6 / 6  —  Auto-start on Boot  (systemd)"
