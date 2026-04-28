@@ -158,7 +158,7 @@ Detach from screen without stopping the bot: `Ctrl+A` then `D`.
 | `FILE_CONFLICT_STRATEGY` | `version` | `overwrite` or `version` |
 | `LFS_THRESHOLD_MB` | `50` | Files larger than this (MB) are routed through Git LFS |
 | `CLEANUP_ENABLED` | `false` | Enable automatic deletion of old files |
-| `CLEANUP_MAX_REPO_MB` | `800` | Trigger cleanup when uploaded files exceed this size (MB) |
+| `CLEANUP_MAX_REPO_MB` | `2048` | Trigger cleanup when uploaded files exceed this size (MB) |
 | `CLEANUP_KEEP_LATEST` | `10` | Number of most-recent files that are never deleted |
 | `ALLOWED_USER_IDS` | *(empty = open)* | Comma-separated Telegram user IDs |
 | `ADMIN_USER_ID` | *(none)* | Receives error notifications |
@@ -223,7 +223,7 @@ Enable this if you're on a VPS with limited SSD space. When total uploaded file 
 
 ```env
 CLEANUP_ENABLED=true
-CLEANUP_MAX_REPO_MB=800
+CLEANUP_MAX_REPO_MB=2048
 CLEANUP_KEEP_LATEST=10
 ```
 

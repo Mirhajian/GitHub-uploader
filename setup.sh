@@ -171,7 +171,7 @@ if [[ ! -f "requirements.txt" ]]; then
     if [[ -z "${REPO_URL:-}" ]]; then
         REPO_URL="https://github.com/mirhajian/GitHub-uploader.git"
     fi
-    git clone -b supporting-github-lfs-for-large-files --single-branch "$REPO_URL" tg-github-uploader
+    git clone "$REPO_URL" tg-github-uploader
     cd tg-github-uploader
     success "Repository cloned into $(pwd)"
 fi
@@ -260,11 +260,11 @@ if [[ "$_write_env" == "true" ]]; then
     echo ""
     if prompt_yesno "  Enable auto-cleanup?"; then
         CLEANUP_ENABLED="true"
-        prompt_optional CLEANUP_MAX  "Start cleanup when repo exceeds (MB)" "800"
+        prompt_optional CLEANUP_MAX  "Start cleanup when repo exceeds (MB)" "2048"
         prompt_optional CLEANUP_KEEP "Always keep this many newest files" "10"
     else
         CLEANUP_ENABLED="false"
-        CLEANUP_MAX="800"
+        CLEANUP_MAX="2048"
         CLEANUP_KEEP="10"
     fi
 
@@ -297,7 +297,7 @@ LFS_THRESHOLD_MB=${LFS_MB:-50}
 
 # ─── VPS disk cleanup ────────────────────────────────────────────────────────
 CLEANUP_ENABLED=${CLEANUP_ENABLED}
-CLEANUP_MAX_REPO_MB=${CLEANUP_MAX:-800}
+CLEANUP_MAX_REPO_MB=${CLEANUP_MAX:-2048}
 CLEANUP_KEEP_LATEST=${CLEANUP_KEEP:-10}
 
 # ─── Access control ──────────────────────────────────────────────────────────
