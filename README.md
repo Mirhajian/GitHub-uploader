@@ -1,17 +1,24 @@
 # 📤 Telegram → GitHub File Upload Bot
 
-> نسخه فارسی این راهنما موجود است: [README.fa.md](README.fa.md)
+> یک نسخه فارسی این راهنما موجود است: [README.fa.md](README.fa.md)
 
-A Telegram bot that receives any file type and uploads it directly to a GitHub repository via the Contents API.
-
-> **No local Bot API server required** — the bot uses **Pyrogram** which connects directly to Telegram's servers over the MTProto protocol, supporting files up to **2 GB** natively.
+> **Why this was built** — 28 April 2025
+>
+> In Iran, frequent internet disruptions and the high cost of VPNs make accessing
+> personal files unreliable. GitHub is one of the few services that often remains
+> accessible without a VPN. This bot lets you push large files from Telegram
+> (videos, audio, documents, …) directly into a GitHub repository, so you can
+> download them from GitHub anytime — no VPN needed.
+>
+> All you need is a cheap hourly-billed VPS with a minimum 10 GB SSD, and this bot.
 
 ---
 
 ## Features
 
 - **All file types** — documents, photos, videos, audio, voice, stickers, animations, video notes
-- **Direct MTProto connection** — no middleware server, up to 2 GB uploads/downloads out of the box
+- **Smart routing** — files under 50 MB go through the Contents API; larger files are stored via **Git LFS** automatically
+- **Auto-cleanup** — when the repo exceeds a configured size limit, the oldest files are deleted to keep VPS disk usage low
 - **Access control** — whitelist of allowed Telegram user IDs
 - **Conflict resolution** — overwrite existing files or auto-version them (`file_1.ext`, `file_2.ext`, …)
 - **Custom upload paths** — per-user `/setpath` command
@@ -39,7 +46,7 @@ telegram-github-uploader/
 │   └── services/
 │       ├── __init__.py
 │       ├── file_service.py    # Telegram file extraction & download
-│       └── github_service.py  # GitHub Contents API wrapper
+│       └── github_service.py  # GitHub Contents API + Git LFS wrapper
 ├── logs/                      # Auto-created at runtime
 ├── .env                       # Your secrets (never commit this)
 ├── .env.example               # Template – copy and fill in
@@ -52,88 +59,135 @@ telegram-github-uploader/
 
 ## Quick Start
 
-### 1. Clone & install
+### ⚡ One-line setup (recommended)
+
+No cloning required. Run this on your VPS and the wizard handles everything:
 
 ```bash
+bash <(curl -sL https://raw.githubusercontent.com/mirhajian/GitHub-uploader/main/setup.sh)
+```
+
+The script will automatically:
+1. Run `apt update` and install all required system packages
+2. Clone this repository
+3. Create a Python virtual environment and install dependencies
+4. Walk you through every config value and write `.env`
+5. Optionally configure Git LFS in your repository
+6. Optionally install a `systemd` service so the bot survives reboots
+
+> **Prerequisite:** `sudo` access on the VPS and an active internet connection.
+
+---
+
+### 🛠️ Manual setup
+
+#### 1. Clone & install
+
+```bash
+sudo apt update
+sudo apt install build-essential python3 python3-dev python3-venv python3-pip git git-lfs curl -y
+
 git clone https://github.com/mirhajian/GitHub-uploader
 cd GitHub-uploader
 
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure
+#### 2. Configure
 
 ```bash
 cp .env.example .env
-# Edit .env and fill in the required values
+nano .env    # fill in the required values
 ```
 
-#### Required variables
+#### 3. Enable Git LFS in your repository (for large files)
+
+If you want to store files larger than 50 MB, you need to initialise Git LFS in your repo once — do this on your **local machine**, not the VPS:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+
+git lfs install
+git lfs track "*"         # track all file types under LFS
+git add .gitattributes
+git commit -m "chore: enable Git LFS for all files"
+git push
+```
+
+Install Git LFS if needed:
+- Ubuntu/Debian: `sudo apt install git-lfs`
+- macOS: `brew install git-lfs`
+- Windows: download from [git-lfs.com](https://git-lfs.com)
+
+> If you only upload files under 50 MB, this step is optional.
+
+#### 4. Run the bot
+
+```bash
+screen -S tel2github          # keep the bot running in the background
+source .venv/bin/activate
+python -m bot
+```
+
+Detach from screen without stopping the bot: `Ctrl+A` then `D`.
+
+---
+
+## Environment Variables
+
+#### Required
 
 | Variable | Description |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_API_ID` | From [my.telegram.org](https://my.telegram.org) |
 | `TELEGRAM_API_HASH` | From [my.telegram.org](https://my.telegram.org) |
-| `GITHUB_TOKEN` | PAT with `repo` scope (read/write contents) |
+| `GITHUB_TOKEN` | PAT with `repo` scope |
 | `GITHUB_OWNER` | Your GitHub username or org |
 | `GITHUB_REPO` | Target repository name |
 
-#### Optional variables
+#### Optional
 
 | Variable | Default | Description |
 |---|---|---|
 | `GITHUB_BRANCH` | `main` | Target branch |
 | `UPLOAD_BASE_PATH` | `uploads` | Root folder inside the repo |
 | `FILE_CONFLICT_STRATEGY` | `version` | `overwrite` or `version` |
+| `LFS_THRESHOLD_MB` | `50` | Files larger than this (MB) are routed through Git LFS |
+| `CLEANUP_ENABLED` | `false` | Enable automatic deletion of old files |
+| `CLEANUP_MAX_REPO_MB` | `2048` | Trigger cleanup when uploaded files exceed this size (MB) |
+| `CLEANUP_KEEP_LATEST` | `10` | Number of most-recent files that are never deleted |
 | `ALLOWED_USER_IDS` | *(empty = open)* | Comma-separated Telegram user IDs |
 | `ADMIN_USER_ID` | *(none)* | Receives error notifications |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `LOG_FILE` | `logs/bot.log` | Log file path |
 
-### 3. Run the bot
-
-```bash
-python -m bot
-```
-
-That's it. No local Bot API server needed — Pyrogram handles everything over MTProto directly.
-
 ---
 
 ## Getting Your Credentials
 
-### Telegram API ID & Hash (`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`)
+### Telegram API ID & Hash
 
 Required by Pyrogram for the direct MTProto connection.
 
-1. Go to [my.telegram.org](https://my.telegram.org) and sign in with your phone number.
-2. Click **"API development tools"**.
-3. Fill in a short app name (anything, e.g. `my-bot`) and click **"Create application"**.
-4. Copy the `App api_id` (number) and `App api_hash` (string).
+1. Go to [my.telegram.org](https://my.telegram.org) and sign in.
+2. Click **"API development tools"**, fill in a short app name, click **"Create application"**.
+3. Copy `App api_id` and `App api_hash`.
 
-> ⚠️ Never share these or commit them to a public repository.
+### Bot Token
 
-### Bot Token (`TELEGRAM_BOT_TOKEN`)
+Open [@BotFather](https://t.me/BotFather), send `/newbot`, follow the prompts, copy the token.
 
-1. Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`.
-2. Follow the prompts to pick a name and username.
-3. Copy the token BotFather gives you.
+### GitHub Token
 
-### GitHub Token (`GITHUB_TOKEN`)
+Go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**, generate a new token with the **`repo`** scope, copy it immediately.
 
-1. On GitHub go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**.
-2. Click **Generate new token (classic)**.
-3. Give it a descriptive name, set an expiry, and tick the **`repo`** scope.
-4. Click **Generate token** and copy it immediately — it won't be shown again.
+### Your Telegram User ID
 
-> ⚠️ Never commit this token or share it.
-
-### Your Telegram User ID (`ALLOWED_USER_IDS`, `ADMIN_USER_ID`)
-
-Send `/start` to [@userinfobot](https://t.me/userinfobot) — it will reply with your numeric user ID.
+Send `/start` to [@userinfobot](https://t.me/userinfobot) — it will reply with your numeric ID.
 
 ---
 
@@ -149,14 +203,29 @@ Send `/start` to [@userinfobot](https://t.me/userinfobot) — it will reply with
 
 ---
 
-## File Size Limits
+## File Size Limits & Smart Routing
 
 | Layer | Maximum |
 |---|---|
 | Pyrogram / MTProto (download from Telegram) | **2 000 MB** |
-| GitHub Contents API (upload to repo) | **100 MB** |
+| GitHub Contents API (files below threshold) | **100 MB** |
+| Git LFS (files above threshold) | **2 GB** (free tier) |
 
-For files larger than 100 MB, use [Git LFS](https://git-lfs.com) or an object storage service (S3, Cloudflare R2, etc.).
+The bot decides automatically:
+- Files smaller than `LFS_THRESHOLD_MB` (default 50 MB) → **Contents API**
+- Files larger → **Git LFS**
+
+---
+
+## Auto-Cleanup (for small VPS disks)
+
+Enable this if you're on a VPS with limited SSD space. When total uploaded file size exceeds `CLEANUP_MAX_REPO_MB`, the bot deletes the oldest files while always keeping the `CLEANUP_KEEP_LATEST` most recent ones intact.
+
+```env
+CLEANUP_ENABLED=true
+CLEANUP_MAX_REPO_MB=2048
+CLEANUP_KEEP_LATEST=10
+```
 
 ---
 
@@ -171,4 +240,3 @@ uploads/2024-01-15/photo.jpg
 # With /setpath project/images:
 uploads/project/images/photo.jpg
 ```
-

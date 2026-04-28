@@ -33,10 +33,19 @@ class Settings:
     github_owner: str
     github_repo: str
     github_branch: str
+    lfs_threshold_mb: float   # Files >= this size go through Git LFS
 
     # ── Upload behaviour ──────────────────────────────────────────────────
     upload_base_path: str
     file_conflict_strategy: Literal["overwrite", "version"]
+
+    # ── VPS disk cleanup ──────────────────────────────────────────────────
+    # When enabled the bot deletes the oldest uploaded files from the repo
+    # once total size exceeds the configured cap, keeping disk usage low
+    # for minimal (10 GB SSD) VPS deployments.
+    cleanup_enabled: bool
+    cleanup_max_repo_mb: float   # Trigger cleanup above this repo size (MB)
+    cleanup_keep_latest: int     # Number of most-recent files to always keep
 
     # ── Access control ────────────────────────────────────────────────────
     allowed_user_ids: set[int]
@@ -74,6 +83,28 @@ class Settings:
             )
         self.file_conflict_strategy = conflict_raw  # type: ignore[assignment]
 
+        # LFS: files >= this many MB are uploaded via Git LFS instead of
+        # the Contents API (which hard-limits at 100 MB).
+        # Default 50 MB — well under GitHub's 100 MB Contents API limit,
+        # leaving headroom and enabling LFS for large-media users.
+        try:
+            self.lfs_threshold_mb = float(os.getenv("LFS_THRESHOLD_MB", "50"))
+        except ValueError:
+            raise ValueError("LFS_THRESHOLD_MB must be a number (e.g. 50).")
+
+        # Disk cleanup
+        self.cleanup_enabled = os.getenv("CLEANUP_ENABLED", "false").lower() in (
+            "1", "true", "yes"
+        )
+        try:
+            self.cleanup_max_repo_mb = float(os.getenv("CLEANUP_MAX_REPO_MB", "800"))
+        except ValueError:
+            raise ValueError("CLEANUP_MAX_REPO_MB must be a number (e.g. 800).")
+        try:
+            self.cleanup_keep_latest = int(os.getenv("CLEANUP_KEEP_LATEST", "10"))
+        except ValueError:
+            raise ValueError("CLEANUP_KEEP_LATEST must be an integer (e.g. 10).")
+
         raw_ids = os.getenv("ALLOWED_USER_IDS", "")
         self.allowed_user_ids = {
             int(uid.strip())
@@ -109,6 +140,10 @@ class Settings:
             f"/{self.github_repo}/contents"
         )
 
+    @property
+    def lfs_threshold_bytes(self) -> int:
+        return int(self.lfs_threshold_mb * 1024 * 1024)
+
     def is_user_allowed(self, user_id: int) -> bool:
         if not self.allowed_user_ids:
             return True
@@ -117,7 +152,9 @@ class Settings:
     def __repr__(self) -> str:
         return (
             f"<Settings owner={self.github_owner} repo={self.github_repo} "
-            f"branch={self.github_branch} conflict={self.file_conflict_strategy}>"
+            f"branch={self.github_branch} conflict={self.file_conflict_strategy} "
+            f"lfs_threshold={self.lfs_threshold_mb}MB "
+            f"cleanup={self.cleanup_enabled}>"
         )
 
 
