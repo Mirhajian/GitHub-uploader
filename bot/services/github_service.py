@@ -124,7 +124,7 @@ class GitHubService:
         size = len(file_bytes)
         repo_path = self._build_path(original_filename, custom_folder)
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=30.0, read=300.0, write=300.0, pool=30.0)) as client:
             if size >= self._cfg.lfs_threshold_bytes:
                 result = await self._upload_lfs(client, repo_path, file_bytes)
             else:
@@ -223,6 +223,15 @@ class GitHubService:
             used_lfs=True,
         )
 
+    def _lfs_basic_auth(self) -> str:
+        """
+        The Git LFS smart HTTP server (github.com/{repo}.git/info/lfs/…)
+        is NOT the REST API — it requires HTTP Basic auth, not a Bearer token.
+        Credentials: base64("x-access-token:<PAT>")
+        """
+        raw = f"x-access-token:{self._cfg.github_token}"
+        return "Basic " + base64.b64encode(raw.encode()).decode()
+
     async def _lfs_batch_upload(
         self,
         client: httpx.AsyncClient,
@@ -238,7 +247,7 @@ class GitHubService:
             f"{self._cfg.github_repo}.git/info/lfs/objects/batch"
         )
         headers = {
-            "Authorization": f"Bearer {self._cfg.github_token}",
+            "Authorization": self._lfs_basic_auth(),
             "Accept": "application/vnd.git-lfs+json",
             "Content-Type": "application/vnd.git-lfs+json",
         }
@@ -321,7 +330,7 @@ class GitHubService:
         size: int,
     ) -> None:
         headers = {
-            "Authorization": f"Bearer {self._cfg.github_token}",
+            "Authorization": self._lfs_basic_auth(),
             "Accept": "application/vnd.git-lfs+json",
             "Content-Type": "application/vnd.git-lfs+json",
             **(verify_header or {}),
