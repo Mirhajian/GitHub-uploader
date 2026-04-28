@@ -67,6 +67,7 @@ bash <(curl -sL https://raw.githubusercontent.com/mirhajian/GitHub-uploader/main
 ```
 
 این دستور به‌صورت خودکار:
+
 ۱. `apt update` را اجرا می‌کند و بسته‌های لازم را نصب می‌کند
 
 ۲. مخزن را کلون می‌کند
@@ -75,7 +76,7 @@ bash <(curl -sL https://raw.githubusercontent.com/mirhajian/GitHub-uploader/main
 
 ۴. فایل `.env` را با راهنمایی گام‌به‌گام می‌سازد
 
-۵. **Git LFS را مستقیماً روی مخزن گیت‌هاب شما فعال می‌کند** — بدون هیچ مرحله دستی
+۵. بدون هیچ مرحله دستی **Git LFS را مستقیم روی مخزن گیتهاب شما فعال میکند**
 
 ۶. سرویس `systemd` را (در صورت تمایل) نصب می‌کند
 
