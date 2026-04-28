@@ -68,7 +68,7 @@ bash <(curl -sL https://raw.githubusercontent.com/mirhajian/GitHub-uploader/main
 
 این دستور به‌صورت خودکار:
 
-۱. `apt update` را اجرا می‌کند و بسته‌های لازم را نصب می‌کند
+۱. دستور `apt update` را اجرا می‌کند و بسته‌های لازم را نصب می‌کند
 
 ۲. مخزن را کلون می‌کند
 
