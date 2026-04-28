@@ -171,7 +171,7 @@ if [[ ! -f "requirements.txt" ]]; then
     if [[ -z "${REPO_URL:-}" ]]; then
         REPO_URL="https://github.com/mirhajian/GitHub-uploader.git"
     fi
-    git clone "$REPO_URL" tg-github-uploader
+    git clone -b supporting-github-lfs-for-large-files --single-branch "$REPO_URL" tg-github-uploader
     cd tg-github-uploader
     success "Repository cloned into $(pwd)"
 fi
